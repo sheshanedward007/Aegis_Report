@@ -1,256 +1,148 @@
-const app = {
-    // State
-    currentView: 'home-view',
-    gpsCoords: null,
+// app.js
+// Simple SPA navigation and offline storage handling for Project Aegis
 
-    // Init
-    init: function () {
-        this.bindEvents();
-        this.loadOfflineReports();
-        this.checkConnection();
-        this.getGeolocation(); // Try to get location on start
+(() => {
+  const pages = document.querySelectorAll('.page');
+  const navLinks = document.querySelectorAll('.nav-link');
+  const sidebar = document.querySelector('.sidebar');
 
-        // Mock dashboard data
-        this.renderDashboard();
-    },
+  // Helper to show a page
+  function showPage(pageId) {
+    pages.forEach(p => p.classList.toggle('active-page', p.id === pageId));
+    navLinks.forEach(l => l.classList.toggle('active', l.dataset.page === pageId));
+  }
 
-    bindEvents: function () {
-        // Navigation clicks are handled by onclick in HTML for simplicity, 
-        // but we can add global listeners here if needed.
+  // Sidebar navigation click handling
+  navLinks.forEach(link => {
+    link.addEventListener('click', e => {
+      e.preventDefault();
+      const target = link.dataset.page;
+      showPage(target);
+      // Close sidebar on mobile after navigation
+      if (window.innerWidth <= 768) sidebar.classList.remove('open');
+    });
+  });
 
-        // Form Submission
-        document.getElementById('incident-form').addEventListener('submit', (e) => {
-            e.preventDefault();
-            this.saveReport();
-        });
+  // Buttons inside cards that also navigate
+  document.querySelectorAll('[data-nav]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.nav;
+      showPage(target);
+    });
+  });
 
-        // Online/Offline Listeners
-        window.addEventListener('online', () => this.updateStatus(true));
-        window.addEventListener('offline', () => this.updateStatus(false));
+  // ---------- Incident Form ----------
+  const form = document.getElementById('incident-form');
+  const formMessage = document.getElementById('form-message');
+  const gpsInput = document.getElementById('gps');
 
-        // PWA Install Prompt
-        let deferredPrompt;
-        const installBtn = document.getElementById('install-btn');
-
-        window.addEventListener('beforeinstallprompt', (e) => {
-            // Prevent Chrome 67 and earlier from automatically showing the prompt
-            e.preventDefault();
-            // Stash the event so it can be triggered later.
-            deferredPrompt = e;
-            // Update UI to notify the user they can add to home screen
-            installBtn.style.display = 'block';
-        });
-
-        installBtn.addEventListener('click', () => {
-            // Hide the app provided install promotion
-            installBtn.style.display = 'none';
-            // Show the install prompt
-            if (deferredPrompt) {
-                deferredPrompt.prompt();
-                // Wait for the user to respond to the prompt
-                deferredPrompt.userChoice.then((choiceResult) => {
-                    if (choiceResult.outcome === 'accepted') {
-                        console.log('User accepted the A2HS prompt');
-                    } else {
-                        console.log('User dismissed the A2HS prompt');
-                    }
-                    deferredPrompt = null;
-                });
-            }
-        });
-    },
-
-    // --- Navigation ---
-    showView: function (viewId) {
-        // Hide all views
-        document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
-        // Show target
-        document.getElementById(viewId).classList.add('active');
-
-        // Update Nav Active State
-        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-        // Find the button that links to this view (simple matching)
-        const navBtn = Array.from(document.querySelectorAll('.nav-item')).find(btn => btn.getAttribute('onclick').includes(viewId));
-        if (navBtn) navBtn.classList.add('active');
-
-        // Refresh lists if entering those views
-        if (viewId === 'offline-view') this.loadOfflineReports();
-    },
-
-    // --- Geolocation ---
-    getGeolocation: function () {
-        const el = document.getElementById('gps-coords');
-        el.textContent = "Locating...";
-
-        if (!navigator.geolocation) {
-            el.textContent = "GPS not supported";
-            return;
-        }
-
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                this.gpsCoords = {
-                    lat: pos.coords.latitude.toFixed(6),
-                    lng: pos.coords.longitude.toFixed(6)
-                };
-                el.textContent = `${this.gpsCoords.lat}, ${this.gpsCoords.lng}`;
-            },
-            (err) => {
-                el.textContent = "GPS Failed. Tap Retry.";
-                console.error(err);
-            },
-            { enableHighAccuracy: true, timeout: 5000 }
-        );
-    },
-
-    // --- Data / LocalStorage ---
-    saveReport: function () {
-        const type = document.getElementById('incident-type').value;
-        const severity = document.getElementById('severity').value;
-        const notes = document.getElementById('notes').value;
-
-        if (!type) {
-            alert("Please select an incident type.");
-            return;
-        }
-
-        const report = {
-            id: Date.now(),
-            type,
-            severity,
-            notes,
-            coords: this.gpsCoords || { lat: '0', lng: '0' },
-            timestamp: new Date().toLocaleString(),
-            synced: false
-        };
-
-        // Save to LocalStorage
-        const reports = JSON.parse(localStorage.getItem('aegis_reports') || '[]');
-        reports.push(report);
-        localStorage.setItem('aegis_reports', JSON.stringify(reports));
-
-        // UI Feedback
-        this.showToast("Saved offline");
-        document.getElementById('incident-form').reset();
-        document.getElementById('gps-coords').textContent = "Detecting location..."; // Reset GPS UI
-
-        // Return to home or pending
-        setTimeout(() => this.showView('offline-view'), 1000);
-    },
-
-    loadOfflineReports: function () {
-        const reports = JSON.parse(localStorage.getItem('aegis_reports') || '[]');
-        const container = document.getElementById('offline-list');
-
-        if (reports.length === 0) {
-            container.innerHTML = '<div class="empty-state">No pending reports.</div>';
-            return;
-        }
-
-        container.innerHTML = reports.map(r => `
-            <div class="card">
-                <h3>${r.type} <small>(Lev ${r.severity})</small></h3>
-                <p>📍 ${r.coords.lat}, ${r.coords.lng}</p>
-                <p>📝 ${r.notes || "No notes"}</p>
-                <div class="meta">
-                    <span>${r.timestamp}</span>
-                    <span style="color:orange">⚠ Pending</span>
-                </div>
-            </div>
-        `).join('');
-    },
-
-    // --- Sync Logic ---
-    syncReports: function () {
-        const reports = JSON.parse(localStorage.getItem('aegis_reports') || '[]');
-
-        if (reports.length === 0) {
-            this.showToast("Nothing to sync");
-            return;
-        }
-
-        if (!navigator.onLine) {
-            this.showToast("You are offline!");
-            return;
-        }
-
-        // Simulate API Sync
-        const btn = document.querySelector('#offline-view .btn-small');
-        btn.textContent = "Syncing...";
-        btn.disabled = true;
-
-        setTimeout(() => {
-            // Success scenario
-            console.log("Uploaded reports:", reports);
-
-            // Clear LocalStorage
-            localStorage.setItem('aegis_reports', '[]');
-
-            // Refresh UI
-            this.loadOfflineReports();
-            this.showToast("Synced Successfully");
-            btn.textContent = "🔄 Sync Now";
-            btn.disabled = false;
-        }, 2000);
-    },
-
-    updateStatus: function (isOnline) {
-        const header = document.getElementById('main-header');
-        const statusText = document.getElementById('header-status-text');
-        const submitBtn = document.getElementById('submit-btn');
-
-        if (isOnline) {
-            header.classList.remove('offline');
-            header.classList.add('online');
-            statusText.textContent = "Online";
-
-            if (submitBtn) {
-                submitBtn.classList.remove('offline');
-                submitBtn.classList.add('online');
-            }
-        } else {
-            header.classList.remove('online');
-            header.classList.add('offline');
-            statusText.textContent = "Offline";
-
-            if (submitBtn) {
-                submitBtn.classList.remove('online');
-                submitBtn.classList.add('offline');
-            }
-        }
-    },
-
-    checkConnection: function () {
-        this.updateStatus(navigator.onLine);
-    },
-
-    // --- UI Utilities ---
-    showToast: function (msg) {
-        const toast = document.getElementById('toast');
-        toast.textContent = msg;
-        toast.classList.add('show');
-        setTimeout(() => toast.classList.remove('show'), 3000);
-    },
-
-    renderDashboard: function () {
-        const mockData = [
-            { type: "Flood", sev: 5, time: "2 mins ago", loc: "River Bank" },
-            { type: "RoadBlock", sev: 3, time: "1 hour ago", loc: "Main Hwy" },
-            { type: "Fire", sev: 4, time: "3 hours ago", loc: "Sector 7" }
-        ];
-
-        document.getElementById('dashboard-list').innerHTML = mockData.map(d => `
-            <div class="card" style="border-left-color: ${d.sev >= 4 ? 'red' : 'orange'}">
-                <h3>${d.type}</h3>
-                <p>${d.loc}</p>
-                <div class="meta">
-                    <span>${d.time}</span>
-                    <span>✅ Active</span>
-                </div>
-            </div>
-        `).join('');
+  // Attempt to get GPS when the form loads (optional, offline friendly)
+  function fillGPS() {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(pos => {
+        const { latitude, longitude } = pos.coords;
+        gpsInput.value = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+      }, err => {
+        gpsInput.value = 'Unavailable';
+      });
+    } else {
+      gpsInput.value = 'Unavailable';
     }
-};
+  }
 
-// Start App
-document.addEventListener('DOMContentLoaded', () => app.init());
+  fillGPS();
+
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+    const report = {
+      id: Date.now(),
+      type: form.type.value,
+      severity: form.severity.value,
+      notes: form.notes.value,
+      gps: gpsInput.value,
+      photo: form.photo.files[0] ? form.photo.files[0].name : null,
+      time: new Date().toISOString()
+    };
+    // Store in localStorage under a dedicated key array
+    const stored = JSON.parse(localStorage.getItem('aegis_reports') || '[]');
+    stored.push(report);
+    localStorage.setItem('aegis_reports', JSON.stringify(stored));
+    formMessage.textContent = 'Report saved offline successfully';
+    form.reset();
+    fillGPS();
+    updatePendingList();
+  });
+
+  // ---------- Pending Sync Page ----------
+  const pendingList = document.getElementById('pending-list');
+  const syncBtn = document.getElementById('sync-btn');
+  const syncMessage = document.getElementById('sync-message');
+
+  function updatePendingList() {
+    const reports = JSON.parse(localStorage.getItem('aegis_reports') || '[]');
+    pendingList.innerHTML = '';
+    if (reports.length === 0) {
+      pendingList.innerHTML = '<li>No pending reports</li>';
+    } else {
+      reports.forEach(r => {
+        const li = document.createElement('li');
+        li.textContent = `#${r.id} – ${r.type} (Severity ${r.severity})`;
+        pendingList.appendChild(li);
+      });
+    }
+  }
+
+  syncBtn.addEventListener('click', () => {
+    // Simulate upload by clearing storage
+    localStorage.removeItem('aegis_reports');
+    updatePendingList();
+    syncMessage.textContent = 'All reports synced successfully';
+    // After sync, also refresh the reports dashboard (which uses sample data)
+    loadReportsDashboard();
+  });
+
+  // ---------- Reports Dashboard ----------
+  const reportsTableBody = document.querySelector('#reports-table tbody');
+
+  // Sample static data (could be replaced with real data after sync)
+  const sampleData = [
+    { id: 1, type: 'Fire', severity: 4, time: '2025-12-01T10:15:00Z', location: '12.9716, 77.5946' },
+    { id: 2, type: 'Flood', severity: 3, time: '2025-12-03T14:30:00Z', location: '34.0522, -118.2437' },
+    { id: 3, type: 'Earthquake', severity: 5, time: '2025-12-05T08:45:00Z', location: '35.6895, 139.6917' }
+  ];
+
+  function loadReportsDashboard() {
+    // Clear existing rows
+    reportsTableBody.innerHTML = '';
+    // Combine stored reports (if any) with sample data for demo
+    const stored = JSON.parse(localStorage.getItem('aegis_reports') || '[]');
+    const combined = [...sampleData];
+    stored.forEach(r => {
+      combined.push({
+        id: r.id,
+        type: r.type,
+        severity: r.severity,
+        time: r.time,
+        location: r.gps
+      });
+    });
+    combined.forEach(item => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${item.id}</td>
+        <td>${item.type}</td>
+        <td>${item.severity}</td>
+        <td>${new Date(item.time).toLocaleString()}</td>
+        <td>${item.location}</td>
+      `;
+      reportsTableBody.appendChild(tr);
+    });
+  }
+
+  // Initial load
+  updatePendingList();
+  loadReportsDashboard();
+
+  // ---------- Mobile Sidebar Toggle (optional) ----------
+  // Add a simple toggle button if needed (not in markup). Users can extend.
+})();

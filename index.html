@@ -2,150 +2,110 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Project Aegis</title>
-    <link rel="stylesheet" href="style.css">
-    <meta name="theme-color" content="#2c3e50">
-    <link rel="manifest"
-        href="data:application/json;base64,eyJuYW1lIjoiUHJvamVjdCBBZWdpcyIsImRpc3BsYXkiOiJzdGFuZGFsb25lIn0=">
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Project Aegis – Disaster Response System</title>
+    <link rel="stylesheet" href="styles.css" />
 </head>
 
 <body>
-
-    <!-- Header -->
-    <header class="app-header" id="main-header">
-        <div class="header-left">
-            <span id="header-status-text">Online</span>
-        </div>
-        <h1>Project Aegis</h1>
-        <div class="header-right">
-            <button id="install-btn" class="btn-icon" style="display: none;" aria-label="Install App">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="7 10 12 15 17 10"></polyline>
-                    <line x1="12" y1="15" x2="12" y2="3"></line>
-                </svg>
-            </button>
-        </div>
-    </header>
-
-    <!-- Main Content Container -->
-    <main id="app-container">
-
-        <!-- 1. Mobile Home Screen -->
-        <section id="home-view" class="view active">
-            <div class="hero-actions">
-                <button class="btn-large primary" onclick="app.showView('new-report-view')">
-                    <span class="icon">📝</span>
-                    New Report
-                </button>
-                <button class="btn-large secondary" onclick="app.showView('dashboard-view')">
-                    <span class="icon">📊</span>
-                    View Reports
-                </button>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar">
+            <div class="logo">
+                <!-- Placeholder for logo -->
+                <img src="logo.png" alt="Project Aegis" class="logo-img" />
+                <h1>Project Aegis</h1>
             </div>
-        </section>
+            <ul class="nav-list">
+                <li><a href="#" data-page="home" class="nav-link active">Home Dashboard</a></li>
+                <li><a href="#" data-page="new-report" class="nav-link">New Incident Report</a></li>
+                <li><a href="#" data-page="pending-sync" class="nav-link">Pending Sync</a></li>
+                <li><a href="#" data-page="reports" class="nav-link">Reports Dashboard</a></li>
+            </ul>
+        </nav>
 
-        <!-- 2. New Incident Report -->
-        <section id="new-report-view" class="view">
-            <h2>New Incident</h2>
-            <form id="incident-form">
-                <div class="form-group">
-                    <label for="incident-type">Incident Type</label>
-                    <select id="incident-type" required>
-                        <option value="" disabled selected>Select Type</option>
-                        <option value="Flood">🌊 Flood</option>
-                        <option value="Landslide">⛰️ Landslide</option>
-                        <option value="Fire">🔥 Fire</option>
-                        <option value="RoadBlock">🚧 Road Block</option>
-                        <option value="PowerLine">⚡ Power Line Down</option>
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Home Dashboard -->
+            <section id="home" class="page active-page">
+                <header class="page-header">
+                    <h2>Project Aegis – Disaster Response System</h2>
+                </header>
+                <div class="card-grid">
+                    <div class="card">
+                        <button class="action-btn" data-nav="new-report">Submit New Incident Report</button>
+                    </div>
+                    <div class="card">
+                        <button class="action-btn" data-nav="reports">View Reports Dashboard</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- New Incident Report Page -->
+            <section id="new-report" class="page">
+                <h2>New Incident Report</h2>
+                <form id="incident-form" class="card">
+                    <label for="type">Incident Type</label>
+                    <select id="type" name="type" required>
+                        <option value="">Select type</option>
+                        <option value="Fire">Fire</option>
+                        <option value="Flood">Flood</option>
+                        <option value="Earthquake">Earthquake</option>
+                        <option value="Storm">Storm</option>
                     </select>
-                </div>
 
-                <div class="form-group">
-                    <label for="severity">Severity Level: <span id="severity-val">3</span></label>
-                    <input type="range" id="severity" min="1" max="5" value="3"
-                        oninput="document.getElementById('severity-val').textContent = this.value">
-                    <div class="slider-labels">
-                        <span>1</span>
-                        <span>2</span>
-                        <span>3</span>
-                        <span>4</span>
-                        <span>5</span>
-                    </div>
-                </div>
+                    <label for="severity">Severity (1–5)</label>
+                    <input type="number" id="severity" name="severity" min="1" max="5" required />
 
-                <div class="form-group">
                     <label for="notes">Notes</label>
-                    <textarea id="notes" rows="4" placeholder="Describe the situation..."></textarea>
-                </div>
+                    <textarea id="notes" name="notes" rows="4"></textarea>
 
-                <div class="form-group">
-                    <label>GPS Location</label>
-                    <div class="gps-box">
-                        <span id="gps-coords">Detecting location...</span>
-                        <button type="button" class="btn-small" onclick="app.getGeolocation()">📍 Retry</button>
-                    </div>
-                </div>
+                    <label for="gps">GPS Coordinates</label>
+                    <input type="text" id="gps" name="gps" placeholder="Auto-filled when saved" readonly />
 
-                <div class="form-group">
-                    <label for="photo">Upload Photo</label>
-                    <input type="file" id="photo" accept="image/*" capture="environment">
-                </div>
+                    <label for="photo">Upload Photo (optional)</label>
+                    <input type="file" id="photo" name="photo" accept="image/*" />
 
-                <button type="submit" id="submit-btn" class="btn-block">Submit</button>
-            </form>
-        </section>
+                    <button type="submit" class="action-btn">Submit</button>
+                </form>
+                <div id="form-message" class="message"></div>
+            </section>
 
-        <!-- 3. Offline / Pending Reports -->
-        <section id="offline-view" class="view">
-            <div class="section-header">
+            <!-- Pending Sync Page -->
+            <section id="pending-sync" class="page">
                 <h2>Pending Sync</h2>
-                <button class="btn-small success" onclick="app.syncReports()">🔄 Sync Now</button>
-            </div>
-            <div id="offline-list" class="card-list">
-                <!-- Javascript will populate this -->
-                <div class="empty-state">No pending reports.</div>
-            </div>
-        </section>
+                <div class="card">
+                    <ul id="pending-list" class="pending-list"></ul>
+                    <button id="sync-btn" class="action-btn">Sync Now</button>
+                    <div id="sync-message" class="message"></div>
+                </div>
+            </section>
 
-        <!-- 4. Reports Dashboard -->
-        <section id="dashboard-view" class="view">
-            <h2>Dashboard</h2>
-
-            <div class="map-placeholder">
-                🗺️ Map Integration Here
-            </div>
-
-            <div id="dashboard-list" class="card-list">
-                <!-- Js will populate mock data here -->
-            </div>
-        </section>
-
-    </main>
-
-    <!-- Bottom Navigation -->
-    <nav class="bottom-nav">
-        <button class="nav-item active" onclick="app.showView('home-view')">🏠 Home</button>
-        <button class="nav-item" onclick="app.showView('new-report-view')">➕ New</button>
-        <button class="nav-item" onclick="app.showView('offline-view')">📂 Pending</button>
-        <button class="nav-item" onclick="app.showView('dashboard-view')">📊 Dash</button>
-    </nav>
-
-    <!-- Toast Notification -->
-    <div id="toast" class="toast">Saved offline</div>
+            <!-- Reports Dashboard -->
+            <section id="reports" class="page">
+                <h2>Reports Dashboard</h2>
+                <div class="card">
+                    <table id="reports-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Type</th>
+                                <th>Severity</th>
+                                <th>Time</th>
+                                <th>Location</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                    <div class="map-placeholder">Map View Here</div>
+                </div>
+            </section>
+        </main>
+    </div>
 
     <script src="app.js"></script>
-    <script>
-        // Register Service Worker for PWA capabilties
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js')
-                .then(reg => console.log('SW Registered'))
-                .catch(err => console.log('SW Failed', err));
-        }
-    </script>
 </body>
 
 </html>
