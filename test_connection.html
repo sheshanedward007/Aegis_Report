@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase Connection Test</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            padding: 2rem;
+            max-width: 600px;
+            margin: 0 auto;
+            background: #f3f4f6;
+        }
+
+        .card {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            margin-top: 0;
+            color: #111827;
+        }
+
+        .status {
+            padding: 1rem;
+            border-radius: 6px;
+            margin-top: 1rem;
+            font-family: monospace;
+        }
+
+        .pending {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        /* Starting red/pending */
+        .success {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .log {
+            margin-top: 1rem;
+            white-space: pre-wrap;
+            font-size: 0.9rem;
+            color: #4b5563;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 1rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="card">
+        <h1>🔥 Firebase Connection Diagnostic</h1>
+        <p>Testing connection to project: <strong>project-aegis-845e6</strong></p>
+
+        <div id="status" class="status pending">Initializing...</div>
+        <div id="log" class="log"></div>
+    </div>
+
+    <!-- SDKs matching your project -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+    <!-- Config from your firebase.js -->
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyBmxz5b598PlSbUyKbh4VwHvRpAxltqcFA",
+            authDomain: "project-aegis-845e6.firebaseapp.com",
+            projectId: "project-aegis-845e6",
+            storageBucket: "project-aegis-845e6.appspot.com",
+            messagingSenderId: "851940559314",
+            appId: "1:851940559314:web:a2d93e9d366577855a200b"
+        };
+
+        const logEl = document.getElementById('log');
+        const statusEl = document.getElementById('status');
+
+        function log(msg, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            logEl.innerHTML += `<div>[${timestamp}] ${msg}</div>`;
+            console.log(`[${type}] ${msg}`);
+        }
+
+        function setStatus(msg, type) {
+            statusEl.textContent = msg;
+            statusEl.className = 'status ' + type;
+        }
+
+        async function testConnection() {
+            try {
+                // 1. Initialize
+                log('Initializing Firebase App...');
+                firebase.initializeApp(firebaseConfig);
+                const db = firebase.firestore();
+                log('Firebase App initialized.');
+
+                // 2. Network Check
+                log('Checking network status...');
+                if (!navigator.onLine) throw new Error('Browser is offline');
+                log('Network is online.');
+
+                // 3. Write Test
+                log('Attempting to write to collection "_connection_test"...');
+                const testDoc = db.collection('_connection_test').doc('test_' + Date.now());
+                await testDoc.set({
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                    test: 'Hello from Diagnostic Tool',
+                    agent: navigator.userAgent
+                });
+                log('✅ Write successful!');
+
+                // 4. Read Test
+                log('Attempting to read back document...');
+                const docSnap = await testDoc.get();
+                if (docSnap.exists) {
+                    log('✅ Read successful! Data: ' + JSON.stringify(docSnap.data()));
+                } else {
+                    throw new Error('Document written but not found on read.');
+                }
+
+                // 5. Cleanup (Optional, verifying delete permissions if you want)
+                log('Attempting to delete test document...');
+                await testDoc.delete();
+                log('✅ Delete successful!');
+
+                setStatus('Connection Verified! System is GO.', 'success');
+
+            } catch (error) {
+                log('❌ ERROR: ' + error.message);
+                if (error.code === 'permission-denied') {
+                    log('⚠️ PERMISSION DENIED: Check your Firestore Security Rules.');
+                    log('Try allowing read/write for testing: match /{document=**} { allow read, write: if true; }');
+                }
+                setStatus('Connection Failed: ' + error.message, 'error');
+            }
+        }
+
+        testConnection();
+    </script>
+</body>
+
+</html>
