@@ -5,7 +5,9 @@ const ASSETS = [
     './style.css',
     './app.js',
     './manifest.json',
-    './arrow-to-bottom.png'
+    './arrow-to-bottom.png',
+    'https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js',
+    'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js'
 ];
 
 self.addEventListener('install', e => {

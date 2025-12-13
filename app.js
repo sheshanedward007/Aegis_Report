@@ -577,9 +577,10 @@ const app = {
                         report.syncStatus = 'synced';
                         await db.updateReport(report);
                         syncedCount++;
-                        console.log(`Synced report ${report.id} to Firestore`);
+                        console.log(`✅ SUCCESS: Synced report ${report.id} to Firestore.`);
+                        console.log(`ℹ️ Check Firestore Collection 'reports' for Document ID: ${report.id}`);
                     } else {
-                        console.warn("Firestore not initialized, cannot sync");
+                        console.warn("⚠️ Firestore not initialized (window.firestore is undefined). Cannot sync.");
                     }
                 } catch (e) {
                     console.error(`Failed to sync report ${report.id}`, e);
