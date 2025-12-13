@@ -59,7 +59,7 @@ const app = {
         if (regForm) {
             regForm.addEventListener('submit', (e) => {
                 e.preventDefault();
-                this.register();
+                this.handleAuth();
             });
         }
 
@@ -70,6 +70,16 @@ const app = {
                 e.preventDefault();
                 this.submitReport();
             });
+        }
+
+        // Severity Slider
+        const severityInput = document.getElementById('severity');
+        if (severityInput) {
+            severityInput.addEventListener('input', (e) => {
+                this.updateSeverityDisplay(e.target.value);
+            });
+            // Init default state
+            this.updateSeverityDisplay(severityInput.value);
         }
 
         // PWA Install Logic
@@ -97,7 +107,46 @@ const app = {
     },
 
     // --- Auth Logic ---
-    register: function () {
+    authMode: 'register',
+
+    toggleAuthMode: function () {
+        this.authMode = this.authMode === 'register' ? 'login' : 'register';
+
+        const isLogin = this.authMode === 'login';
+        const formTitle = document.querySelector('.auth-card h2');
+        const formDesc = document.querySelector('.auth-card p');
+        const emailGroup = document.getElementById('group-email');
+        const confirmGroup = document.getElementById('group-confirm');
+        const submitBtn = document.getElementById('auth-submit-btn');
+        const toggleLink = document.querySelector('.auth-card p a');
+        const toggleText = document.getElementById('auth-toggle-text');
+
+        // UI Updates
+        if (formTitle) formTitle.textContent = isLogin ? 'Welcome Back' : 'Incident Reporting System';
+        if (formDesc) formDesc.textContent = isLogin ? 'Login to continue' : 'Register to report incidents';
+
+        if (emailGroup) emailGroup.style.display = isLogin ? 'none' : 'block';
+        if (confirmGroup) confirmGroup.style.display = isLogin ? 'none' : 'block';
+
+        // Remove 'required' attributes when hidden to avoid form validation blocking
+        document.getElementById('reg-email').required = !isLogin;
+        document.getElementById('reg-password-confirm').required = !isLogin;
+
+        if (submitBtn) submitBtn.textContent = isLogin ? 'Login' : 'Register';
+
+        if (toggleText) toggleText.textContent = isLogin ? "Don't have an account?" : "Already have an account?";
+        if (toggleLink) toggleLink.textContent = isLogin ? 'Register' : 'Login';
+    },
+
+    handleAuth: function () {
+        if (this.authMode === 'register') {
+            this.register();
+        } else {
+            this.login();
+        }
+    },
+
+    register: async function () {
         const username = document.getElementById('reg-username').value.trim();
         const email = document.getElementById('reg-email').value.trim();
         const password = document.getElementById('reg-password').value.trim();
@@ -119,9 +168,43 @@ const app = {
         }
 
         const user = { username, email, password, joined: new Date().toISOString() };
-        this.state.currentUser = user;
-        localStorage.setItem('aegis_user', JSON.stringify(user));
-        this.showDashboard();
+
+        try {
+            await db.addUser(user);
+            this.state.currentUser = user;
+            localStorage.setItem('aegis_user', JSON.stringify(user));
+            this.showToast('Registration Successful!');
+            this.showDashboard();
+        } catch (e) {
+            console.error("Registration error", e);
+            this.showToast('Registration failed. Username might be taken.');
+        }
+    },
+
+    login: async function () {
+        const username = document.getElementById('reg-username').value.trim();
+        const password = document.getElementById('reg-password').value.trim();
+
+        if (!username || !password) {
+            this.showToast('Please enter username and PIN');
+            return;
+        }
+
+        try {
+            const user = await db.getUser(username);
+
+            if (user && user.password === password) {
+                this.state.currentUser = user;
+                localStorage.setItem('aegis_user', JSON.stringify(user));
+                this.showToast('Login Successful!');
+                this.showDashboard();
+            } else {
+                this.showToast('Invalid Username or PIN');
+            }
+        } catch (e) {
+            console.error("Login error", e);
+            this.showToast('Login failed. Please try again.');
+        }
     },
 
     logout: function () {
@@ -178,6 +261,34 @@ const app = {
     },
 
     // --- Report Logic ---
+    updateSeverityDisplay: function (val) {
+        const el = document.getElementById('severity-val');
+        if (!el) return;
+
+        let text = val;
+        let color = '#10B981'; // Default Green
+
+        // 1 & 2 = Low (Green)
+        if (val <= 2) {
+            text += ' - Low';
+            color = '#10B981';
+        }
+        // 3 = Medium (Yellow/Orange)
+        else if (val == 3) {
+            text += ' - Medium';
+            color = '#F59E0B';
+        }
+        // 4 & 5 = Critical (Red)
+        else {
+            text += ' - Critical';
+            color = '#EF4444';
+        }
+
+        el.textContent = text;
+        el.style.color = color;
+        el.style.fontWeight = 'bold';
+    },
+
     // --- Helper ---
     fileToBase64: function (file) {
         return new Promise((resolve, reject) => {
@@ -256,7 +367,10 @@ const app = {
             // Re-sort just in case (though unshift on sorted list is usually fine, specific requirements asked safe sort)
             this.state.reports.sort((a, b) => b.id - a.id);
 
-            this.showToast('Report Submitted Successfully');
+            const msg = navigator.onLine
+                ? 'Report Submitted Successfully'
+                : 'Saved to local storage successfully';
+            this.showToast(msg);
 
             // Reset form
             document.getElementById('incident-form').reset();
@@ -305,8 +419,16 @@ const app = {
             let statusColor = '#10B981'; // Green
             const severity = parseInt(r.severity);
 
-            if (severity >= 3) { sevText = 'Medium'; }
-            if (severity >= 5) { sevText = 'Critical'; statusColor = '#EF4444'; }
+            if (severity <= 2) {
+                sevText = `${severity} - Low`;
+                statusColor = '#10B981'; // Green
+            } else if (severity == 3) {
+                sevText = `${severity} - Medium`;
+                statusColor = '#F59E0B'; // Yellow/Orange
+            } else {
+                sevText = `${severity} - Critical`;
+                statusColor = '#EF4444'; // Red
+            }
 
             // Location Text
             const locText = (r.coords && r.coords.latitude)
@@ -429,7 +551,7 @@ const app = {
                 const loadedReports = await db.getReports();
                 this.state.reports = loadedReports.sort((a, b) => b.id - a.id);
                 this.renderMyReports();
-                this.showToast(`Synced ${syncedCount} reports successfully!`);
+                this.showToast(`Reports delivered successfully!`);
             } else {
                 this.showToast("Sync failed. Will retry later.");
             }

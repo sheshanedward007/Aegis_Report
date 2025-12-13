@@ -1,7 +1,8 @@
 const db = {
     dbName: 'aegis_db',
-    version: 1,
+    version: 2, // Bumped for 'users' store
     storeName: 'reports',
+    userStore: 'users',
     db: null,
 
     init: function () {
@@ -10,8 +11,13 @@ const db = {
 
             request.onupgradeneeded = (event) => {
                 const db = event.target.result;
+                // Create Reports Store
                 if (!db.objectStoreNames.contains(this.storeName)) {
                     db.createObjectStore(this.storeName, { keyPath: 'id' });
+                }
+                // Create Users Store
+                if (!db.objectStoreNames.contains(this.userStore)) {
+                    db.createObjectStore(this.userStore, { keyPath: 'username' });
                 }
             };
 
@@ -28,6 +34,7 @@ const db = {
         });
     },
 
+    // --- Report Methods ---
     getReports: function () {
         return new Promise((resolve, reject) => {
             if (!this.db) return reject('DB not initialized');
@@ -36,21 +43,8 @@ const db = {
             const request = store.getAll();
 
             request.onsuccess = () => {
-                // Sort by timestamp desc to match original behavior (unshift adds to top)
-                // But getAll returns by key (id). 
-                // We will let app.js handle sorting if needed, or sort here.
-                // Original app.js used unshift to add to top of array, implying newest first.
-                // getAll() returns in key order (id = Date.now(), so oldest first).
-                // We should probably reverse it or let app.js sort it.
-                // app.js renderMyReports iterates the array. 
-                // Let's return as is and let app.js handle state.
-                // Actually, app.js: "this.state.reports.unshift(report); // Add to top"
-                // So app.js expects element 0 to be newest.
-                // getAll() returns oldest first (id asc).
-                // So we should reverse it here or in app.js.
-                // Let's reverse it here for convenience.
                 const res = request.result || [];
-                res.reverse();
+                res.reverse(); // Newest first
                 resolve(res);
             };
             request.onerror = (e) => reject(e.target.error);
@@ -75,6 +69,31 @@ const db = {
             const transaction = this.db.transaction([this.storeName], 'readwrite');
             const store = transaction.objectStore(this.storeName);
             const request = store.put(report);
+
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = (e) => reject(e.target.error);
+        });
+    },
+
+    // --- User Methods ---
+    addUser: function (user) {
+        return new Promise((resolve, reject) => {
+            if (!this.db) return reject('DB not initialized');
+            const transaction = this.db.transaction([this.userStore], 'readwrite');
+            const store = transaction.objectStore(this.userStore);
+            const request = store.put(user);
+
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = (e) => reject(e.target.error);
+        });
+    },
+
+    getUser: function (username) {
+        return new Promise((resolve, reject) => {
+            if (!this.db) return reject('DB not initialized');
+            const transaction = this.db.transaction([this.userStore], 'readonly');
+            const store = transaction.objectStore(this.userStore);
+            const request = store.get(username);
 
             request.onsuccess = () => resolve(request.result);
             request.onerror = (e) => reject(e.target.error);
