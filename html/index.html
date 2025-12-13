@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Project Aegis – Disaster Response System</title>
+    <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar">
+            <div class="logo">
+                <!-- Placeholder for logo -->
+                <img src="logo.png" alt="Project Aegis" class="logo-img" />
+                <h1>Project Aegis</h1>
+            </div>
+            <ul class="nav-list">
+                <li><a href="#" data-page="home" class="nav-link active">Home Dashboard</a></li>
+                <li><a href="#" data-page="new-report" class="nav-link">New Incident Report</a></li>
+                <li><a href="#" data-page="pending-sync" class="nav-link">Pending Sync</a></li>
+                <li><a href="#" data-page="reports" class="nav-link">Reports Dashboard</a></li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Home Dashboard -->
+            <section id="home" class="page active-page">
+                <header class="page-header">
+                    <h2>Project Aegis – Disaster Response System</h2>
+                </header>
+                <div class="card-grid">
+                    <div class="card">
+                        <button class="action-btn" data-nav="new-report">Submit New Incident Report</button>
+                    </div>
+                    <div class="card">
+                        <button class="action-btn" data-nav="reports">View Reports Dashboard</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- New Incident Report Page -->
+            <section id="new-report" class="page">
+                <h2>New Incident Report</h2>
+                <form id="incident-form" class="card">
+                    <label for="type">Incident Type</label>
+                    <select id="type" name="type" required>
+                        <option value="">Select type</option>
+                        <option value="Fire">Fire</option>
+                        <option value="Flood">Flood</option>
+                        <option value="Earthquake">Earthquake</option>
+                        <option value="Storm">Storm</option>
+                    </select>
+
+                    <label for="severity">Severity (1–5)</label>
+                    <input type="number" id="severity" name="severity" min="1" max="5" required />
+
+                    <label for="notes">Notes</label>
+                    <textarea id="notes" name="notes" rows="4"></textarea>
+
+                    <label for="gps">GPS Coordinates</label>
+                    <input type="text" id="gps" name="gps" placeholder="Auto-filled when saved" readonly />
+
+                    <label for="photo">Upload Photo (optional)</label>
+                    <input type="file" id="photo" name="photo" accept="image/*" />
+
+                    <button type="submit" class="action-btn">Submit</button>
+                </form>
+                <div id="form-message" class="message"></div>
+            </section>
+
+            <!-- Pending Sync Page -->
+            <section id="pending-sync" class="page">
+                <h2>Pending Sync</h2>
+                <div class="card">
+                    <ul id="pending-list" class="pending-list"></ul>
+                    <button id="sync-btn" class="action-btn">Sync Now</button>
+                    <div id="sync-message" class="message"></div>
+                </div>
+            </section>
+
+            <!-- Reports Dashboard -->
+            <section id="reports" class="page">
+                <h2>Reports Dashboard</h2>
+                <div class="card">
+                    <table id="reports-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Type</th>
+                                <th>Severity</th>
+                                <th>Time</th>
+                                <th>Location</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                    <div class="map-placeholder">Map View Here</div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>

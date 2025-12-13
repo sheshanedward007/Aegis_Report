@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Aegis</title>
+    <link rel="stylesheet" href="style.css">
+    <meta name="theme-color" content="#2c3e50">
+    <link rel="manifest"
+        href="data:application/json;base64,eyJuYW1lIjoiUHJvamVjdCBBZWdpcyIsImRpc3BsYXkiOiJzdGFuZGFsb25lIn0=">
+</head>
+
+<body>
+
+    <!-- Header -->
+    <header class="app-header" id="main-header">
+        <div class="header-left">
+            <span id="header-status-text">Online</span>
+        </div>
+        <h1>Project Aegis</h1>
+        <div class="header-right">
+            <button id="install-btn" class="btn-icon" style="display: none;" aria-label="Install App">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main id="app-container">
+
+        <!-- 1. Mobile Home Screen -->
+        <section id="home-view" class="view active">
+            <div class="hero-actions">
+                <button class="btn-large primary" onclick="app.showView('new-report-view')">
+                    <span class="icon">📝</span>
+                    New Report
+                </button>
+                <button class="btn-large secondary" onclick="app.showView('dashboard-view')">
+                    <span class="icon">📊</span>
+                    View Reports
+                </button>
+            </div>
+        </section>
+
+        <!-- 2. New Incident Report -->
+        <section id="new-report-view" class="view">
+            <h2>New Incident</h2>
+            <form id="incident-form">
+                <div class="form-group">
+                    <label for="incident-type">Incident Type</label>
+                    <select id="incident-type" required>
+                        <option value="" disabled selected>Select Type</option>
+                        <option value="Flood">🌊 Flood</option>
+                        <option value="Landslide">⛰️ Landslide</option>
+                        <option value="Fire">🔥 Fire</option>
+                        <option value="RoadBlock">🚧 Road Block</option>
+                        <option value="PowerLine">⚡ Power Line Down</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="severity">Severity Level: <span id="severity-val">3</span></label>
+                    <input type="range" id="severity" min="1" max="5" value="3"
+                        oninput="document.getElementById('severity-val').textContent = this.value">
+                    <div class="slider-labels">
+                        <span>1</span>
+                        <span>2</span>
+                        <span>3</span>
+                        <span>4</span>
+                        <span>5</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="notes">Notes</label>
+                    <textarea id="notes" rows="4" placeholder="Describe the situation..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>GPS Location</label>
+                    <div class="gps-box">
+                        <span id="gps-coords">Detecting location...</span>
+                        <button type="button" class="btn-small" onclick="app.getGeolocation()">📍 Retry</button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="photo">Upload Photo</label>
+                    <input type="file" id="photo" accept="image/*" capture="environment">
+                </div>
+
+                <button type="submit" id="submit-btn" class="btn-block">Submit</button>
+            </form>
+        </section>
+
+        <!-- 3. Offline / Pending Reports -->
+        <section id="offline-view" class="view">
+            <div class="section-header">
+                <h2>Pending Sync</h2>
+                <button class="btn-small success" onclick="app.syncReports()">🔄 Sync Now</button>
+            </div>
+            <div id="offline-list" class="card-list">
+                <!-- Javascript will populate this -->
+                <div class="empty-state">No pending reports.</div>
+            </div>
+        </section>
+
+        <!-- 4. Reports Dashboard -->
+        <section id="dashboard-view" class="view">
+            <h2>Dashboard</h2>
+
+            <div class="map-placeholder">
+                🗺️ Map Integration Here
+            </div>
+
+            <div id="dashboard-list" class="card-list">
+                <!-- Js will populate mock data here -->
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav">
+        <button class="nav-item active" onclick="app.showView('home-view')">🏠 Home</button>
+        <button class="nav-item" onclick="app.showView('new-report-view')">➕ New</button>
+        <button class="nav-item" onclick="app.showView('offline-view')">📂 Pending</button>
+        <button class="nav-item" onclick="app.showView('dashboard-view')">📊 Dash</button>
+    </nav>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast">Saved offline</div>
+
+    <script src="app.js"></script>
+    <script>
+        // Register Service Worker for PWA capabilties
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(reg => console.log('SW Registered'))
+                .catch(err => console.log('SW Failed', err));
+        }
+    </script>
+</body>
+
+</html>
