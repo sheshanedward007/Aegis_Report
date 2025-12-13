@@ -559,18 +559,28 @@ const app = {
 
             for (const report of pending) {
                 try {
-                    // Simulate Individual Sync
-                    await new Promise(resolve => setTimeout(resolve, 500)); // 500ms per report
 
-                    report.syncStatus = 'synced';
-                    await db.updateReport(report);
-                    syncedCount++;
+                    // Actual Firestore Sync
+                    if (typeof window.firestore !== 'undefined') {
+                        await window.firestore.collection('reports').doc(report.id.toString()).set({
+                            type: report.type,
+                            severity: report.severity,
+                            notes: report.notes,
+                            image: report.image || null,
+                            status: report.status,
+                            reporter: report.reporter,
+                            coords: report.coords,
+                            timestamp: report.timestamp,
+                            formattedDate: report.formattedDate
+                        });
 
-                    // Optional: Update UI incrementally if strictly needed, 
-                    // but usually batch refresh at end is cleaner to avoid flickering.
-                    // We will just log process.
-                    console.log(`Synced report ${report.id}`);
-
+                        report.syncStatus = 'synced';
+                        await db.updateReport(report);
+                        syncedCount++;
+                        console.log(`Synced report ${report.id} to Firestore`);
+                    } else {
+                        console.warn("Firestore not initialized, cannot sync");
+                    }
                 } catch (e) {
                     console.error(`Failed to sync report ${report.id}`, e);
                 }
