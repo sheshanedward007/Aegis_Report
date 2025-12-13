@@ -4,12 +4,15 @@ const app = {
         reports: [],
         view: 'register-view' // Default
     },
+    deferredPrompt: null, // Store prompt here
 
     init: function () {
         this.loadState();
         this.checkAuth();
         this.bindEvents();
         this.checkConnection();
+        this.getGeolocation();
+
 
         // Register SW
         if ('serviceWorker' in navigator) {
@@ -58,22 +61,20 @@ const app = {
         }
 
         // PWA Install Logic
-        let deferredPrompt;
         const installBtn = document.getElementById('pwa-install-btn');
 
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredPrompt = e;
-            if (installBtn) installBtn.style.display = 'flex'; // Show button
-        });
+        // Check if event fired before this ran
+        if (this.deferredPrompt && installBtn) {
+            installBtn.style.display = 'flex';
+        }
 
         if (installBtn) {
             installBtn.addEventListener('click', async () => {
-                if (deferredPrompt) {
-                    deferredPrompt.prompt();
-                    const { outcome } = await deferredPrompt.userChoice;
+                if (this.deferredPrompt) {
+                    this.deferredPrompt.prompt();
+                    const { outcome } = await this.deferredPrompt.userChoice;
                     console.log(`User response to the install prompt: ${outcome}`);
-                    deferredPrompt = null;
+                    this.deferredPrompt = null;
                     installBtn.style.display = 'none'; // Hide after use
                 }
             });
@@ -87,15 +88,28 @@ const app = {
     register: function () {
         const username = document.getElementById('reg-username').value.trim();
         const email = document.getElementById('reg-email').value.trim();
+        const password = document.getElementById('reg-password').value.trim();
+        const confirmPassword = document.getElementById('reg-password-confirm').value.trim();
 
-        if (username && email) {
-            const user = { username, email, joined: new Date().toISOString() };
-            this.state.currentUser = user;
-            localStorage.setItem('aegis_user', JSON.stringify(user));
-            this.showDashboard();
-        } else {
+        if (!username || !email || !password || !confirmPassword) {
             this.showToast('Please fill in all fields');
+            return;
         }
+
+        if (password.length !== 8 || !/^\d+$/.test(password)) {
+            this.showToast('PIN must be exactly 8 digits');
+            return;
+        }
+
+        if (password !== confirmPassword) {
+            this.showToast('PINs do not match');
+            return;
+        }
+
+        const user = { username, email, password, joined: new Date().toISOString() };
+        this.state.currentUser = user;
+        localStorage.setItem('aegis_user', JSON.stringify(user));
+        this.showDashboard();
     },
 
     logout: function () {
@@ -106,6 +120,8 @@ const app = {
         // Clear input fields
         document.getElementById('reg-username').value = '';
         document.getElementById('reg-email').value = '';
+        document.getElementById('reg-password').value = '';
+        document.getElementById('reg-password-confirm').value = '';
     },
 
     // --- Navigation & UI ---
@@ -173,7 +189,9 @@ const app = {
             severity: sev,
             notes: notes,
             status: 'pending', // pending, approved, resolved
-            reporter: this.state.currentUser.username, // Track who reported it
+            syncStatus: navigator.onLine ? 'synced' : 'pending_sync',
+            reporter: this.state.currentUser.username,
+            coords: this.state.currentLocation || { latitude: 0, longitude: 0 },
             timestamp: new Date().toISOString(),
             formattedDate: new Date().toLocaleString()
         };
@@ -222,6 +240,11 @@ const app = {
             if (severity >= 3) { sevText = 'Medium'; }
             if (severity >= 5) { sevText = 'Critical'; statusColor = '#EF4444'; }
 
+            // Location Text
+            const locText = (r.coords && r.coords.latitude)
+                ? `${r.coords.latitude.toFixed(4)}, ${r.coords.longitude.toFixed(4)}`
+                : 'Unknown Location';
+
             return `
             <div class="report-card">
                 <div class="report-icon" style="background: ${iconColor}20; color: ${iconColor};">
@@ -234,6 +257,9 @@ const app = {
                             <div class="report-date">
                                 <span>📅</span> ${r.formattedDate}
                             </div>
+                             <div class="report-date" style="font-size:0.75rem;">
+                                <span>📍</span> ${locText}
+                            </div>
                         </div>
                         <div class="status-badge" style="color: ${statusColor}">
                             <div class="status-dot" style="background: ${statusColor}"></div>
@@ -243,6 +269,9 @@ const app = {
                     <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.5rem;">
                         ${r.notes || "No additional notes provided."}
                     </p>
+                     <div style="margin-top:0.5rem; font-size:0.8rem; font-weight:600; color: ${r.syncStatus === 'synced' ? '#10B981' : '#F59E0B'}">
+                        ${r.syncStatus === 'synced' ? '✅ Delivered' : '⏳ Waiting for connection...'}
+                    </div>
                 </div>
             </div>`;
         }).join('');
@@ -257,11 +286,29 @@ const app = {
         setTimeout(() => toast.style.opacity = '0', 3000);
     },
 
-    // --- Network Status ---
+    // --- Network & Location ---
     checkConnection: function () {
         window.addEventListener('online', () => this.updateStatus(true));
         window.addEventListener('offline', () => this.updateStatus(false));
         this.updateStatus(navigator.onLine);
+    },
+
+    getGeolocation: function () {
+        if ("geolocation" in navigator) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    this.state.currentLocation = {
+                        latitude: position.coords.latitude,
+                        longitude: position.coords.longitude
+                    };
+                    console.log("Location detected:", this.state.currentLocation);
+                },
+                (error) => {
+                    console.error("Error getting location:", error);
+                    this.state.currentLocation = null;
+                }
+            );
+        }
     },
 
     updateStatus: function (isOnline) {
@@ -271,15 +318,44 @@ const app = {
         if (isOnline) {
             header.classList.remove('offline');
             header.classList.add('online');
-            // document.getElementById('header-status-text').textContent = "Online"; // Removed text, just color
+            this.syncOfflineReports(); // Try to sync when back online
         } else {
             header.classList.remove('online');
             header.classList.add('offline');
-            // document.getElementById('header-status-text').textContent = "Offline"; 
             this.showToast('You are offline. Reports will be saved locally.');
+        }
+    },
+
+    syncOfflineReports: function () {
+        // Find pending reports
+        const pending = this.state.reports.filter(r => r.syncStatus === 'pending_sync');
+
+        if (pending.length > 0) {
+            this.showToast(`Syncing ${pending.length} offline reports...`);
+
+            // Simulate API delay
+            setTimeout(() => {
+                this.state.reports = this.state.reports.map(r => {
+                    if (r.syncStatus === 'pending_sync') r.syncStatus = 'synced';
+                    return r;
+                });
+
+                localStorage.setItem('aegis_reports', JSON.stringify(this.state.reports));
+                this.renderMyReports();
+                this.showToast('All reports delivered!');
+            }, 1500);
         }
     }
 };
+
+// Capture PWA install prompt early
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    app.deferredPrompt = e;
+    // If UI is already ready, show button immediately
+    const btn = document.getElementById('pwa-install-btn');
+    if (btn) btn.style.display = 'flex';
+});
 
 // Start App when DOM is ready
 if (document.readyState === 'loading') {
