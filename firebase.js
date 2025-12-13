@@ -9,4 +9,5 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 window.firestore = firebase.firestore();
+window.storage = firebase.storage();
 console.log('🔥 Firebase initialized:', window.firestore);

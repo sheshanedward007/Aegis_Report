@@ -299,6 +299,24 @@ const app = {
         });
     },
 
+    uploadImage: async function (base64String, reportId) {
+        if (!base64String) return null;
+        if (base64String.startsWith('http')) return base64String; // Already a URL
+
+        try {
+            const storageRef = window.storage.ref();
+            const imageRef = storageRef.child(`reports/${reportId}.jpg`);
+
+            await imageRef.putString(base64String, 'data_url');
+            const downloadURL = await imageRef.getDownloadURL();
+            console.log('📸 Image uploaded to Storage:', downloadURL);
+            return downloadURL;
+        } catch (e) {
+            console.error("Upload failed", e);
+            throw e;
+        }
+    },
+
     // --- Report Logic ---
     submitReport: async function () {
         // SECURITY CHECK: Ensure user is logged in
@@ -359,47 +377,55 @@ const app = {
         };
 
         try {
-            // Save to IndexedDB first
+            // 1. Always save to IndexedDB first (with Base64 for immediate offline access)
             await db.addReport(report);
 
-            // Update State
+            // Update State locally
             this.state.reports.unshift(report);
             this.state.reports.sort((a, b) => b.id - a.id);
 
-            // --- FIRESTORE SYNC ---
-            console.log('🔍 Checking Firestore sync...');
-            console.log('Online?', navigator.onLine);
-            console.log('Firestore exists?', typeof window.firestore !== 'undefined');
-
+            // 2. Check Connection & Firestore
             if (navigator.onLine && typeof window.firestore !== 'undefined') {
-                console.log('🚀 Attempting Firestore save...');
-                try {
-                    await window.firestore.collection('reports').doc(report.id.toString()).set({
-                        type: report.type,
-                        severity: report.severity,
-                        notes: report.notes,
-                        image: report.image || null,
-                        status: report.status,
-                        reporter: report.reporter,
-                        coords: report.coords,
-                        timestamp: report.timestamp,
-                        formattedDate: report.formattedDate
-                    });
-                    console.log('✅ Firestore save SUCCESS!');
+                console.log('🚀 Online: Attempting full sync...');
 
-                    // Update sync status AFTER successful save
-                    report.syncStatus = 'synced';
-                    await db.updateReport(report);
-
-                    this.showToast('Report Submitted Successfully');
-                } catch (e) {
-                    console.error("❌ Firestore save failed:", e);
-                    report.syncStatus = 'pending_sync';
-                    this.showToast('Saved locally. Will sync when online.');
+                // A. Upload Image to Storage if exists
+                if (report.image) {
+                    try {
+                        this.showToast('Uploading image...');
+                        const imageUrl = await this.uploadImage(report.image, report.id);
+                        report.image = imageUrl; // Update local object with URL
+                        // Update DB with URL so we don't store base64 unnecessarily if synced
+                        await db.updateReport(report);
+                    } catch (uploadError) {
+                        console.error("Image upload failed, will retry later.", uploadError);
+                        // Proceed to save offline if image upload fails
+                        throw uploadError;
+                    }
                 }
+
+                // B. Save to Firestore
+                await window.firestore.collection('reports').doc(report.id.toString()).set({
+                    type: report.type,
+                    severity: report.severity,
+                    notes: report.notes,
+                    image: report.image || null,
+                    status: report.status,
+                    reporter: report.reporter,
+                    coords: report.coords,
+                    timestamp: report.timestamp,
+                    formattedDate: report.formattedDate
+                });
+
+                console.log('✅ Firestore save SUCCESS!');
+
+                // C. Mark as Synced
+                report.syncStatus = 'synced';
+                await db.updateReport(report);
+
+                this.showToast('Report Submitted & Synced!');
             } else {
-                console.log('⚠️ Skipping Firestore - offline or firestore undefined');
-                this.showToast('Saved to local storage successfully');
+                console.log('⚠️ Offline: Report saved locally.');
+                this.showToast('Offline: Saved locally. Will sync when online.');
             }
 
             // Reset form
@@ -559,9 +585,17 @@ const app = {
 
             for (const report of pending) {
                 try {
+                    if (typeof window.firestore !== 'undefined' && typeof window.storage !== 'undefined') {
 
-                    // Actual Firestore Sync
-                    if (typeof window.firestore !== 'undefined') {
+                        // 1. Upload Image if it's Base64
+                        if (report.image && report.image.startsWith('data:')) {
+                            console.log(`📤 Uploading image for report ${report.id}...`);
+                            const imageUrl = await this.uploadImage(report.image, report.id);
+                            report.image = imageUrl;
+                            await db.updateReport(report); // Save URL locally
+                        }
+
+                        // 2. Sync to Firestore
                         await window.firestore.collection('reports').doc(report.id.toString()).set({
                             type: report.type,
                             severity: report.severity,
@@ -574,13 +608,11 @@ const app = {
                             formattedDate: report.formattedDate
                         });
 
+                        // 3. Update Sync Status
                         report.syncStatus = 'synced';
                         await db.updateReport(report);
                         syncedCount++;
-                        console.log(`✅ SUCCESS: Synced report ${report.id} to Firestore.`);
-                        console.log(`ℹ️ Check Firestore Collection 'reports' for Document ID: ${report.id}`);
-                    } else {
-                        console.warn("⚠️ Firestore not initialized (window.firestore is undefined). Cannot sync.");
+                        console.log(`✅ Synced report ${report.id}`);
                     }
                 } catch (e) {
                     console.error(`Failed to sync report ${report.id}`, e);
@@ -588,13 +620,10 @@ const app = {
             }
 
             if (syncedCount > 0) {
-                // Refresh source of truth from DB
-                const loadedReports = await db.getReports();
-                this.state.reports = loadedReports.sort((a, b) => b.id - a.id);
                 this.renderMyReports();
-                this.showToast(`Reports delivered successfully!`);
+                this.showToast(`Synced ${syncedCount} reports successfully!`);
             } else {
-                this.showToast("Sync failed. Will retry later.");
+                this.showToast("Sync finished with some errors.");
             }
         }
     }
