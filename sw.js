@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aegis-v1';
+const CACHE_NAME = 'aegis-v2';
 const ASSETS = [
     './',
     './index.html',
@@ -8,34 +8,30 @@ const ASSETS = [
     './arrow-to-bottom.png'
 ];
 
-// Install Event - Cache Files
-self.addEventListener('install', (e) => {
-    console.log('[SW] Installed');
+self.addEventListener('install', e => {
+    console.log('[SW] Installing...');
+    self.skipWaiting();
     e.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => {
-            return cache.addAll(ASSETS);
-        })
+        caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
     );
 });
 
-// Activate Event - Clean old caches
-self.addEventListener('activate', (e) => {
+self.addEventListener('activate', e => {
+    console.log('[SW] Activating...');
     e.waitUntil(
-        caches.keys().then((keys) => {
-            return Promise.all(
-                keys.map((key) => {
+        caches.keys().then(keys =>
+            Promise.all(
+                keys.map(key => {
                     if (key !== CACHE_NAME) return caches.delete(key);
                 })
-            );
-        })
+            )
+        )
     );
+    self.clients.claim();
 });
 
-// Fetch Event - Serve from Cache if offline
-self.addEventListener('fetch', (e) => {
+self.addEventListener('fetch', e => {
     e.respondWith(
-        caches.match(e.request).then((res) => {
-            return res || fetch(e.request);
-        })
+        caches.match(e.request).then(res => res || fetch(e.request))
     );
 });
