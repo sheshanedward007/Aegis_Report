@@ -174,15 +174,21 @@
                         <label>Upload Picture</label>
                         <div class="upload-area" onclick="document.getElementById('photo-input').click()">
                             <input type="file" id="photo-input" hidden accept="image/*">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                                style="color:var(--text-muted)">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                <polyline points="17 8 12 3 7 8"></polyline>
-                                <line x1="12" y1="3" x2="12" y2="15"></line>
-                            </svg>
-                            <p style="margin-top:0.5rem; font-size:0.9rem; color:var(--text-muted)">Click to upload an
-                                image</p>
+                            <div id="upload-placeholder"
+                                style="display: flex; flex-direction: column; align-items: center;">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                    style="color:var(--text-muted)">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                </svg>
+                                <p style="margin-top:0.5rem; font-size:0.9rem; color:var(--text-muted)">Click to upload
+                                    an
+                                    image</p>
+                            </div>
+                            <img id="upload-preview" src="" alt="Preview"
+                                style="display:none; width:100%; height:200px; object-fit:cover; border-radius:8px;">
                         </div>
                     </div>
 

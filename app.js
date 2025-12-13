@@ -102,6 +102,31 @@ const app = {
             });
         }
 
+        // Image Preview Logic
+        const fileInput = document.getElementById('photo-input');
+        const placeholder = document.getElementById('upload-placeholder');
+        const preview = document.getElementById('upload-preview');
+
+        if (fileInput && placeholder && preview) {
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        preview.src = e.target.result;
+                        preview.style.display = 'block';
+                        placeholder.style.display = 'none';
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    // No file selected (cancelled)
+                    preview.style.display = 'none';
+                    preview.src = '';
+                    placeholder.style.display = 'flex';
+                }
+            });
+        }
+
         // Expose for onclick handlers in HTML
         window.app = this;
     },
@@ -432,6 +457,15 @@ const app = {
             document.getElementById('incident-form').reset();
             document.getElementById('severity-val').textContent = '3';
             if (fileInput) fileInput.value = '';
+
+            // Reset Preview
+            const placeholder = document.getElementById('upload-placeholder');
+            const preview = document.getElementById('upload-preview');
+            if (preview && placeholder) {
+                preview.style.display = 'none';
+                preview.src = '';
+                placeholder.style.display = 'flex';
+            }
 
             // Auto switch to list
             setTimeout(() => this.switchTab('my-reports'), 500);
