@@ -6,8 +6,17 @@ const app = {
     },
     deferredPrompt: null, // Store prompt here
 
-    init: function () {
-        this.loadState();
+
+
+    currentLocation: null,
+    init: async function () {
+        try {
+            await db.init();
+        } catch (e) {
+            console.error("DB Init failed", e);
+        }
+
+        await this.loadState();
         this.checkAuth();
         this.bindEvents();
         this.checkConnection();
@@ -20,16 +29,19 @@ const app = {
         }
     },
 
-    loadState: function () {
+    loadState: async function () {
         try {
             const user = localStorage.getItem('aegis_user');
             if (user) this.state.currentUser = JSON.parse(user);
 
-            const reports = localStorage.getItem('aegis_reports');
-            if (reports) this.state.reports = JSON.parse(reports);
+            // Load reports from IndexedDB
+            const loadedReports = await db.getReports();
+            // Ensure Newest First (Sort by ID desc)
+            this.state.reports = loadedReports.sort((a, b) => b.id - a.id);
+            this.renderMyReports(); // Refresh UI
         } catch (e) {
             console.error("Error loading state", e);
-            localStorage.clear(); // Reset on corruption
+            // localStorage.clear(); // Removing this as it might wipe user session unnecessarily
         }
     },
 
@@ -166,7 +178,18 @@ const app = {
     },
 
     // --- Report Logic ---
-    submitReport: function () {
+    // --- Helper ---
+    fileToBase64: function (file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = error => reject(error);
+        });
+    },
+
+    // --- Report Logic ---
+    submitReport: async function () {
         // SECURITY CHECK: Ensure user is logged in
         if (!this.state.currentUser) {
             this.showToast('You must be registered to submit reports!');
@@ -174,13 +197,40 @@ const app = {
             return;
         }
 
+        const submitBtn = document.querySelector('#incident-form .btn-primary');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Submitting...';
+        }
+
         const typeEl = document.querySelector('input[name="type"]:checked');
         const sev = document.getElementById('severity').value;
         const notes = document.getElementById('notes').value;
+        const fileInput = document.getElementById('photo-input');
+        const file = fileInput && fileInput.files[0];
 
         if (!typeEl) {
             this.showToast('Please select an incident type');
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Submit Report';
+            }
             return;
+        }
+
+        let imageBase64 = null;
+        if (file) {
+            try {
+                imageBase64 = await this.fileToBase64(file);
+            } catch (e) {
+                console.error("Error converting image", e);
+                this.showToast('Error attaching image');
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Submit Report';
+                }
+                return;
+            }
         }
 
         const report = {
@@ -188,6 +238,7 @@ const app = {
             type: typeEl.value,
             severity: sev,
             notes: notes,
+            image: imageBase64, // Store Base64 image
             status: 'pending', // pending, approved, resolved
             syncStatus: navigator.onLine ? 'synced' : 'pending_sync',
             reporter: this.state.currentUser.username,
@@ -196,17 +247,34 @@ const app = {
             formattedDate: new Date().toLocaleString()
         };
 
-        this.state.reports.unshift(report); // Add to top
-        localStorage.setItem('aegis_reports', JSON.stringify(this.state.reports));
+        try {
+            // Save to DB first (Safe Submission)
+            await db.addReport(report);
 
-        this.showToast('Report Submitted Successfully');
+            // Update State & UI only after successful save
+            this.state.reports.unshift(report);
+            // Re-sort just in case (though unshift on sorted list is usually fine, specific requirements asked safe sort)
+            this.state.reports.sort((a, b) => b.id - a.id);
 
-        // Reset form
-        document.getElementById('incident-form').reset();
-        document.getElementById('severity-val').textContent = '3';
+            this.showToast('Report Submitted Successfully');
 
-        // Auto switch to list
-        setTimeout(() => this.switchTab('my-reports'), 500);
+            // Reset form
+            document.getElementById('incident-form').reset();
+            document.getElementById('severity-val').textContent = '3';
+            if (fileInput) fileInput.value = ''; // Explicit reset
+
+            // Auto switch to list
+            setTimeout(() => this.switchTab('my-reports'), 500);
+
+        } catch (e) {
+            console.error("Error submitting report", e);
+            this.showToast('Failed to save report. Please try again.');
+        } finally {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Submit Report';
+            }
+        }
     },
 
     renderMyReports: function () {
@@ -269,6 +337,8 @@ const app = {
                     <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.5rem;">
                         ${r.notes || "No additional notes provided."}
                     </p>
+                    ${r.image ? `<img src="${r.image}" style="width:100%; height:auto; border-radius:8px; margin-top:10px; object-fit:cover; max-height:200px;" alt="Report Image">` : ''}
+
                      <div style="margin-top:0.5rem; font-size:0.8rem; font-weight:600; color: ${r.syncStatus === 'synced' ? '#10B981' : '#F59E0B'}">
                         ${r.syncStatus === 'synced' ? '✅ Delivered' : '⏳ Waiting for connection...'}
                     </div>
@@ -326,24 +396,43 @@ const app = {
         }
     },
 
-    syncOfflineReports: function () {
+    syncOfflineReports: async function () {
         // Find pending reports
         const pending = this.state.reports.filter(r => r.syncStatus === 'pending_sync');
 
         if (pending.length > 0) {
             this.showToast(`Syncing ${pending.length} offline reports...`);
 
-            // Simulate API delay
-            setTimeout(() => {
-                this.state.reports = this.state.reports.map(r => {
-                    if (r.syncStatus === 'pending_sync') r.syncStatus = 'synced';
-                    return r;
-                });
+            let syncedCount = 0;
 
-                localStorage.setItem('aegis_reports', JSON.stringify(this.state.reports));
+            for (const report of pending) {
+                try {
+                    // Simulate Individual Sync
+                    await new Promise(resolve => setTimeout(resolve, 500)); // 500ms per report
+
+                    report.syncStatus = 'synced';
+                    await db.updateReport(report);
+                    syncedCount++;
+
+                    // Optional: Update UI incrementally if strictly needed, 
+                    // but usually batch refresh at end is cleaner to avoid flickering.
+                    // We will just log process.
+                    console.log(`Synced report ${report.id}`);
+
+                } catch (e) {
+                    console.error(`Failed to sync report ${report.id}`, e);
+                }
+            }
+
+            if (syncedCount > 0) {
+                // Refresh source of truth from DB
+                const loadedReports = await db.getReports();
+                this.state.reports = loadedReports.sort((a, b) => b.id - a.id);
                 this.renderMyReports();
-                this.showToast('All reports delivered!');
-            }, 1500);
+                this.showToast(`Synced ${syncedCount} reports successfully!`);
+            } else {
+                this.showToast("Sync failed. Will retry later.");
+            }
         }
     }
 };
