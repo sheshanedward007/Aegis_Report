@@ -372,6 +372,30 @@ const app = {
                 : 'Saved to local storage successfully';
             this.showToast(msg);
 
+
+            // --- FIRESTORE SYNC ON SUBMIT (NEW) ---
+            if (navigator.onLine && typeof firestore !== 'undefined') {
+                try {
+                    await firestore.collection('reports').doc(report.id.toString()).set({
+                        type: report.type,
+                        severity: report.severity,
+                        notes: report.notes,
+                        image: report.image || null,
+                        status: report.status,
+                        reporter: report.reporter,
+                        coords: report.coords,
+                        timestamp: report.timestamp,
+                        formattedDate: report.formattedDate
+                    });
+                    report.syncStatus = 'synced';
+                    await db.updateReport(report);
+                } catch (e) {
+                    console.error("Firestore save failed", e);
+                    report.syncStatus = 'pending_sync';
+                }
+            }
+            // --- END FIRESTORE SYNC ---
+
             // Reset form
             document.getElementById('incident-form').reset();
             document.getElementById('severity-val').textContent = '3';
