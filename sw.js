@@ -3,7 +3,9 @@ const ASSETS = [
     './',
     './index.html',
     './style.css',
-    './app.js'
+    './app.js',
+    './manifest.json',
+    './arrow-to-bottom.png'
 ];
 
 // Install Event - Cache Files

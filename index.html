@@ -4,145 +4,190 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Project Aegis</title>
+    <title>Aegis Reporter</title>
     <link rel="stylesheet" href="style.css">
-    <meta name="theme-color" content="#2c3e50">
+    <meta name="theme-color" content="#4F46E5">
     <link rel="manifest" href="manifest.json">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 
 <body>
 
-    <!-- Header -->
-    <header class="app-header" id="main-header">
-        <div class="header-left">
-            <span id="header-status-text">Online</span>
-        </div>
-        <h1>Project Aegis</h1>
-        <div class="header-right">
-            <button id="install-btn" class="btn-icon" style="display: block;" aria-label="Install App">
+    <!-- View 1: Registration (Login) -->
+    <section id="register-view" class="view">
+        <div class="auth-card">
+            <div class="auth-icon">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                     stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="7 10 12 15 17 10"></polyline>
-                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
                 </svg>
+            </div>
+            <h2>Incident Reporting System</h2>
+            <p>Register to report incidents</p>
+
+            <form id="register-form">
+                <div class="form-group">
+                    <label for="reg-username">Username</label>
+                    <input type="text" id="reg-username" class="input-field" placeholder="Enter your username" required>
+                </div>
+                <div class="form-group">
+                    <label for="reg-email">Email</label>
+                    <input type="email" id="reg-email" class="input-field" placeholder="Enter your email" required>
+                </div>
+                <button type="submit" class="btn-primary">Register</button>
+            </form>
+        </div>
+    </section>
+
+    <!-- View 2: Main Dashboard (Report + My Reports) -->
+    <section id="dashboard-view" class="view">
+
+        <!-- Header -->
+        <header class="app-header">
+            <div class="user-profile">
+                <div class="avatar-circle" id="user-avatar">?</div>
+                <div class="user-info">
+                    <h3 id="display-name">User</h3>
+                    <span>Welcome back</span>
+                </div>
+            </div>
+            <div class="header-actions" style="display:flex; gap:10px; align-items:center;">
+                <button id="pwa-install-btn" class="btn-icon" style="display:none;" title="Install App">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                </button>
+                <button class="logout-btn" onclick="app.logout()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <polyline points="16 17 21 12 16 7"></polyline>
+                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                    </svg>
+                    Logout
+                </button>
+            </div>
+        </header>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="app.switchTab('new-report')">
+                <span>+</span> New Report
+            </button>
+            <button class="tab-btn" onclick="app.switchTab('my-reports')">
+                <span>📄</span> My Reports
             </button>
         </div>
-    </header>
 
-    <!-- Main Content Container -->
-    <main id="app-container">
+        <!-- Tab Content 1: New Report Form -->
+        <div id="tab-new-report" class="tab-content">
+            <div class="form-section">
+                <h2>Report Incident</h2>
+                <form id="incident-form">
 
-        <!-- 1. Mobile Home Screen -->
-        <section id="home-view" class="view active">
-            <div class="hero-actions">
-                <button class="btn-large primary" onclick="app.showView('new-report-view')">
-                    <span class="icon">📝</span>
-                    New Report
-                </button>
-                <button class="btn-large secondary" onclick="app.showView('dashboard-view')">
-                    <span class="icon">📊</span>
-                    View Reports
-                </button>
-            </div>
-        </section>
-
-        <!-- 2. New Incident Report -->
-        <section id="new-report-view" class="view">
-            <h2>New Incident</h2>
-            <form id="incident-form">
-                <div class="form-group">
-                    <label for="incident-type">Incident Type</label>
-                    <select id="incident-type" required>
-                        <option value="" disabled selected>Select Type</option>
-                        <option value="Flood">🌊 Flood</option>
-                        <option value="Landslide">⛰️ Landslide</option>
-                        <option value="Fire">🔥 Fire</option>
-                        <option value="RoadBlock">🚧 Road Block</option>
-                        <option value="PowerLine">⚡ Power Line Down</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label for="severity">Severity Level: <span id="severity-val">3</span></label>
-                    <input type="range" id="severity" min="1" max="5" value="3"
-                        oninput="document.getElementById('severity-val').textContent = this.value">
-                    <div class="slider-labels">
-                        <span>1</span>
-                        <span>2</span>
-                        <span>3</span>
-                        <span>4</span>
-                        <span>5</span>
+                    <!-- Incident Type -->
+                    <div class="form-group">
+                        <label>Incident Type</label>
+                        <div class="type-grid">
+                            <label class="type-option">
+                                <input type="radio" name="type" value="Floods" required>
+                                <div class="type-card">
+                                    <div class="icon" style="background: #3B82F6;"></div>
+                                    <span>Floods</span>
+                                </div>
+                            </label>
+                            <label class="type-option">
+                                <input type="radio" name="type" value="Landslide">
+                                <div class="type-card">
+                                    <div class="icon" style="background: #D97706;"></div>
+                                    <span>Landslide</span>
+                                </div>
+                            </label>
+                            <label class="type-option">
+                                <input type="radio" name="type" value="Fire">
+                                <div class="type-card">
+                                    <div class="icon" style="background: #EF4444;"></div>
+                                    <span>Fire</span>
+                                </div>
+                            </label>
+                            <label class="type-option">
+                                <input type="radio" name="type" value="Power Line">
+                                <div class="type-card">
+                                    <div class="icon" style="background: #F59E0B;"></div>
+                                    <span>Power Line Down</span>
+                                </div>
+                            </label>
+                        </div>
                     </div>
-                </div>
 
-                <div class="form-group">
-                    <label for="notes">Notes</label>
-                    <textarea id="notes" rows="4" placeholder="Describe the situation..."></textarea>
-                </div>
-
-                <div class="form-group">
-                    <label>GPS Location</label>
-                    <div class="gps-box">
-                        <span id="gps-coords">Detecting location...</span>
-                        <button type="button" class="btn-small" onclick="app.getGeolocation()">📍 Retry</button>
+                    <!-- Severity -->
+                    <div class="form-group">
+                        <label>Severity Level: <span id="severity-val">3</span></label>
+                        <div class="slider-container">
+                            <input type="range" id="severity" min="1" max="5" value="3"
+                                oninput="document.getElementById('severity-val').textContent = this.value">
+                        </div>
+                        <div class="slider-labels">
+                            <span>1 - Low</span>
+                            <span>3 - Medium</span>
+                            <span>5 - Critical</span>
+                        </div>
                     </div>
+
+                    <!-- Notes -->
+                    <div class="form-group">
+                        <label for="notes">Notes</label>
+                        <textarea id="notes" class="input-field" rows="4"
+                            placeholder="Provide additional details about the incident..."></textarea>
+                    </div>
+
+                    <!-- Photo -->
+                    <div class="form-group">
+                        <label>Upload Picture</label>
+                        <div class="upload-area" onclick="document.getElementById('photo-input').click()">
+                            <input type="file" id="photo-input" hidden accept="image/*">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                style="color:var(--text-muted)">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="17 8 12 3 7 8"></polyline>
+                                <line x1="12" y1="3" x2="12" y2="15"></line>
+                            </svg>
+                            <p style="margin-top:0.5rem; font-size:0.9rem; color:var(--text-muted)">Click to upload an
+                                image</p>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-primary">Submit Report</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Tab Content 2: My Reports -->
+        <div id="tab-my-reports" class="tab-content" style="display: none;">
+            <div id="reports-list">
+                <!-- Reports will be injected here -->
+                <div class="empty-state" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+                    No reports submitted yet.
                 </div>
-
-                <div class="form-group">
-                    <label for="photo">Upload Photo</label>
-                    <input type="file" id="photo" accept="image/*" capture="environment">
-                </div>
-
-                <button type="submit" id="submit-btn" class="btn-block">Submit</button>
-            </form>
-        </section>
-
-        <!-- 3. Offline / Pending Reports -->
-        <section id="offline-view" class="view">
-            <div class="section-header">
-                <h2>Pending Sync</h2>
-                <button class="btn-small success" onclick="app.syncReports()">🔄 Sync Now</button>
             </div>
-            <div id="offline-list" class="card-list">
-                <!-- Javascript will populate this -->
-                <div class="empty-state">No pending reports.</div>
-            </div>
-        </section>
+        </div>
 
-        <!-- 4. Reports Dashboard -->
-        <section id="dashboard-view" class="view">
-            <h2>Dashboard</h2>
+    </section>
 
-            <div class="map-placeholder">
-                🗺️ Map Integration Here
-            </div>
-
-            <div id="dashboard-list" class="card-list">
-                <!-- Js will populate mock data here -->
-            </div>
-        </section>
-
-    </main>
-
-    <!-- Bottom Navigation -->
-    <nav class="bottom-nav">
-        <button class="nav-item active" onclick="app.showView('home-view')">🏠 Home</button>
-        <button class="nav-item" onclick="app.showView('new-report-view')">➕ New</button>
-        <button class="nav-item" onclick="app.showView('offline-view')">📂 Pending</button>
-        <button class="nav-item" onclick="app.showView('dashboard-view')">📊 Dash</button>
-    </nav>
-
-    <!-- Toast Notification -->
-    <div id="toast" class="toast">Saved offline</div>
+    <!-- Toast -->
+    <div id="toast"
+        style="position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#333; color:white; padding:10px 20px; border-radius:20px; opacity:0; transition:opacity 0.3s; pointer-events:none;">
+    </div>
 
     <script src="app.js"></script>
     <script>
-        // Register Service Worker for PWA capabilties
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js')
-                .then(reg => console.log('SW Registered'))
-                .catch(err => console.log('SW Failed', err));
+            navigator.serviceWorker.register('sw.js');
         }
     </script>
 </body>

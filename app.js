@@ -1,256 +1,289 @@
 const app = {
-    // State
-    currentView: 'home-view',
-    gpsCoords: null,
+    state: {
+        currentUser: null,
+        reports: [],
+        view: 'register-view' // Default
+    },
 
-    // Init
     init: function () {
+        this.loadState();
+        this.checkAuth();
         this.bindEvents();
-        this.loadOfflineReports();
         this.checkConnection();
-        this.getGeolocation(); // Try to get location on start
 
-        // Mock dashboard data
-        this.renderDashboard();
+        // Register SW
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js');
+        }
+    },
+
+    loadState: function () {
+        try {
+            const user = localStorage.getItem('aegis_user');
+            if (user) this.state.currentUser = JSON.parse(user);
+
+            const reports = localStorage.getItem('aegis_reports');
+            if (reports) this.state.reports = JSON.parse(reports);
+        } catch (e) {
+            console.error("Error loading state", e);
+            localStorage.clear(); // Reset on corruption
+        }
+    },
+
+    checkAuth: function () {
+        if (this.state.currentUser) {
+            this.showDashboard();
+        } else {
+            this.showView('register-view');
+        }
     },
 
     bindEvents: function () {
-        // Navigation clicks are handled by onclick in HTML for simplicity, 
-        // but we can add global listeners here if needed.
+        // Registration
+        const regForm = document.getElementById('register-form');
+        if (regForm) {
+            regForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.register();
+            });
+        }
 
-        // Form Submission
-        document.getElementById('incident-form').addEventListener('submit', (e) => {
-            e.preventDefault();
-            this.saveReport();
-        });
+        // New Report
+        const incidentForm = document.getElementById('incident-form');
+        if (incidentForm) {
+            incidentForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.submitReport();
+            });
+        }
 
-        // Online/Offline Listeners
-        window.addEventListener('online', () => this.updateStatus(true));
-        window.addEventListener('offline', () => this.updateStatus(false));
-
-        // PWA Install Prompt
+        // PWA Install Logic
         let deferredPrompt;
-        const installBtn = document.getElementById('install-btn');
+        const installBtn = document.getElementById('pwa-install-btn');
 
         window.addEventListener('beforeinstallprompt', (e) => {
-            // Prevent Chrome 67 and earlier from automatically showing the prompt
             e.preventDefault();
-            // Stash the event so it can be triggered later.
             deferredPrompt = e;
-            // Update UI to notify the user they can add to home screen
-            installBtn.style.display = 'block';
+            if (installBtn) installBtn.style.display = 'flex'; // Show button
         });
 
-        installBtn.addEventListener('click', () => {
-            // Hide the app provided install promotion
-            installBtn.style.display = 'none';
-            // Show the install prompt
-            if (deferredPrompt) {
-                deferredPrompt.prompt();
-                // Wait for the user to respond to the prompt
-                deferredPrompt.userChoice.then((choiceResult) => {
-                    if (choiceResult.outcome === 'accepted') {
-                        console.log('User accepted the A2HS prompt');
-                    } else {
-                        console.log('User dismissed the A2HS prompt');
-                    }
+        if (installBtn) {
+            installBtn.addEventListener('click', async () => {
+                if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    const { outcome } = await deferredPrompt.userChoice;
+                    console.log(`User response to the install prompt: ${outcome}`);
                     deferredPrompt = null;
-                });
-            }
-        });
+                    installBtn.style.display = 'none'; // Hide after use
+                }
+            });
+        }
+
+        // Expose for onclick handlers in HTML
+        window.app = this;
     },
 
-    // --- Navigation ---
+    // --- Auth Logic ---
+    register: function () {
+        const username = document.getElementById('reg-username').value.trim();
+        const email = document.getElementById('reg-email').value.trim();
+
+        if (username && email) {
+            const user = { username, email, joined: new Date().toISOString() };
+            this.state.currentUser = user;
+            localStorage.setItem('aegis_user', JSON.stringify(user));
+            this.showDashboard();
+        } else {
+            this.showToast('Please fill in all fields');
+        }
+    },
+
+    logout: function () {
+        this.state.currentUser = null;
+        localStorage.removeItem('aegis_user');
+        this.showView('register-view');
+
+        // Clear input fields
+        document.getElementById('reg-username').value = '';
+        document.getElementById('reg-email').value = '';
+    },
+
+    // --- Navigation & UI ---
     showView: function (viewId) {
-        // Hide all views
         document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
-        // Show target
-        document.getElementById(viewId).classList.add('active');
-
-        // Update Nav Active State
-        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-        // Find the button that links to this view (simple matching)
-        const navBtn = Array.from(document.querySelectorAll('.nav-item')).find(btn => btn.getAttribute('onclick').includes(viewId));
-        if (navBtn) navBtn.classList.add('active');
-
-        // Refresh lists if entering those views
-        if (viewId === 'offline-view') this.loadOfflineReports();
+        const target = document.getElementById(viewId);
+        if (target) target.classList.add('active');
     },
 
-    // --- Geolocation ---
-    getGeolocation: function () {
-        const el = document.getElementById('gps-coords');
-        el.textContent = "Locating...";
-
-        if (!navigator.geolocation) {
-            el.textContent = "GPS not supported";
+    showDashboard: function () {
+        const user = this.state.currentUser;
+        if (!user) {
+            this.logout();
             return;
         }
 
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                this.gpsCoords = {
-                    lat: pos.coords.latitude.toFixed(6),
-                    lng: pos.coords.longitude.toFixed(6)
-                };
-                el.textContent = `${this.gpsCoords.lat}, ${this.gpsCoords.lng}`;
-            },
-            (err) => {
-                el.textContent = "GPS Failed. Tap Retry.";
-                console.error(err);
-            },
-            { enableHighAccuracy: true, timeout: 5000 }
-        );
+        // Update Header
+        const nameEl = document.getElementById('display-name');
+        const avatarEl = document.getElementById('user-avatar');
+
+        if (nameEl) nameEl.textContent = user.username;
+        if (avatarEl) avatarEl.textContent = user.username.charAt(0).toUpperCase();
+
+        this.showView('dashboard-view');
+        this.switchTab('new-report'); // Default tab
     },
 
-    // --- Data / LocalStorage ---
-    saveReport: function () {
-        const type = document.getElementById('incident-type').value;
-        const severity = document.getElementById('severity').value;
+    switchTab: function (tabName) {
+        // Tabs UI
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        const activeBtn = Array.from(document.querySelectorAll('.tab-btn'))
+            .find(btn => btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(tabName));
+        if (activeBtn) activeBtn.classList.add('active');
+
+        // Content UI
+        document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+        const target = document.getElementById(`tab-${tabName}`);
+        if (target) {
+            target.style.display = 'block';
+            if (tabName === 'my-reports') this.renderMyReports();
+        }
+    },
+
+    // --- Report Logic ---
+    submitReport: function () {
+        // SECURITY CHECK: Ensure user is logged in
+        if (!this.state.currentUser) {
+            this.showToast('You must be registered to submit reports!');
+            this.showView('register-view');
+            return;
+        }
+
+        const typeEl = document.querySelector('input[name="type"]:checked');
+        const sev = document.getElementById('severity').value;
         const notes = document.getElementById('notes').value;
 
-        if (!type) {
-            alert("Please select an incident type.");
+        if (!typeEl) {
+            this.showToast('Please select an incident type');
             return;
         }
 
         const report = {
             id: Date.now(),
-            type,
-            severity,
-            notes,
-            coords: this.gpsCoords || { lat: '0', lng: '0' },
-            timestamp: new Date().toLocaleString(),
-            synced: false
+            type: typeEl.value,
+            severity: sev,
+            notes: notes,
+            status: 'pending', // pending, approved, resolved
+            reporter: this.state.currentUser.username, // Track who reported it
+            timestamp: new Date().toISOString(),
+            formattedDate: new Date().toLocaleString()
         };
 
-        // Save to LocalStorage
-        const reports = JSON.parse(localStorage.getItem('aegis_reports') || '[]');
-        reports.push(report);
-        localStorage.setItem('aegis_reports', JSON.stringify(reports));
+        this.state.reports.unshift(report); // Add to top
+        localStorage.setItem('aegis_reports', JSON.stringify(this.state.reports));
 
-        // UI Feedback
-        this.showToast("Saved offline");
+        this.showToast('Report Submitted Successfully');
+
+        // Reset form
         document.getElementById('incident-form').reset();
-        document.getElementById('gps-coords').textContent = "Detecting location..."; // Reset GPS UI
+        document.getElementById('severity-val').textContent = '3';
 
-        // Return to home or pending
-        setTimeout(() => this.showView('offline-view'), 1000);
+        // Auto switch to list
+        setTimeout(() => this.switchTab('my-reports'), 500);
     },
 
-    loadOfflineReports: function () {
-        const reports = JSON.parse(localStorage.getItem('aegis_reports') || '[]');
-        const container = document.getElementById('offline-list');
+    renderMyReports: function () {
+        const container = document.getElementById('reports-list');
+        const reports = this.state.reports;
+
+        if (!container) return;
 
         if (reports.length === 0) {
-            container.innerHTML = '<div class="empty-state">No pending reports.</div>';
+            container.innerHTML = `<div class="empty-state" style="text-align:center; color:var(--text-muted); padding:2rem;">No reports submitted yet.</div>`;
             return;
         }
 
-        container.innerHTML = reports.map(r => `
-            <div class="card">
-                <h3>${r.type} <small>(Lev ${r.severity})</small></h3>
-                <p>📍 ${r.coords.lat}, ${r.coords.lng}</p>
-                <p>📝 ${r.notes || "No notes"}</p>
-                <div class="meta">
-                    <span>${r.timestamp}</span>
-                    <span style="color:orange">⚠ Pending</span>
+        container.innerHTML = reports.map(r => {
+            // Determine Color & Icon based on Type
+            let iconColor = '#6B7280';
+            let iconText = '📄';
+
+            switch (r.type) {
+                case 'Floods': iconColor = '#3B82F6'; iconText = '🌊'; break; // Blue
+                case 'Landslide': iconColor = '#D97706'; iconText = '⛰️'; break; // Amber
+                case 'Fire': iconColor = '#EF4444'; iconText = '🔥'; break; // Red
+                case 'Power Line': iconColor = '#F59E0B'; iconText = '⚡'; break; // Orange
+            }
+
+            // Severity text
+            let sevText = 'Low';
+            let statusColor = '#10B981'; // Green
+            const severity = parseInt(r.severity);
+
+            if (severity >= 3) { sevText = 'Medium'; }
+            if (severity >= 5) { sevText = 'Critical'; statusColor = '#EF4444'; }
+
+            return `
+            <div class="report-card">
+                <div class="report-icon" style="background: ${iconColor}20; color: ${iconColor};">
+                    ${iconText}
                 </div>
-            </div>
-        `).join('');
+                <div class="report-content">
+                    <div class="report-header">
+                        <div>
+                            <h4>${r.type}</h4>
+                            <div class="report-date">
+                                <span>📅</span> ${r.formattedDate}
+                            </div>
+                        </div>
+                        <div class="status-badge" style="color: ${statusColor}">
+                            <div class="status-dot" style="background: ${statusColor}"></div>
+                            ${sevText}
+                        </div>
+                    </div>
+                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.5rem;">
+                        ${r.notes || "No additional notes provided."}
+                    </p>
+                </div>
+            </div>`;
+        }).join('');
     },
 
-    // --- Sync Logic ---
-    syncReports: function () {
-        const reports = JSON.parse(localStorage.getItem('aegis_reports') || '[]');
+    showToast: function (msg) {
+        const toast = document.getElementById('toast');
+        if (!toast) return;
 
-        if (reports.length === 0) {
-            this.showToast("Nothing to sync");
-            return;
-        }
+        toast.textContent = msg;
+        toast.style.opacity = '1';
+        setTimeout(() => toast.style.opacity = '0', 3000);
+    },
 
-        if (!navigator.onLine) {
-            this.showToast("You are offline!");
-            return;
-        }
-
-        // Simulate API Sync
-        const btn = document.querySelector('#offline-view .btn-small');
-        btn.textContent = "Syncing...";
-        btn.disabled = true;
-
-        setTimeout(() => {
-            // Success scenario
-            console.log("Uploaded reports:", reports);
-
-            // Clear LocalStorage
-            localStorage.setItem('aegis_reports', '[]');
-
-            // Refresh UI
-            this.loadOfflineReports();
-            this.showToast("Synced Successfully");
-            btn.textContent = "🔄 Sync Now";
-            btn.disabled = false;
-        }, 2000);
+    // --- Network Status ---
+    checkConnection: function () {
+        window.addEventListener('online', () => this.updateStatus(true));
+        window.addEventListener('offline', () => this.updateStatus(false));
+        this.updateStatus(navigator.onLine);
     },
 
     updateStatus: function (isOnline) {
-        const header = document.getElementById('main-header');
-        const statusText = document.getElementById('header-status-text');
-        const submitBtn = document.getElementById('submit-btn');
+        const header = document.querySelector('.app-header');
+        if (!header) return;
 
         if (isOnline) {
             header.classList.remove('offline');
             header.classList.add('online');
-            statusText.textContent = "Online";
-
-            if (submitBtn) {
-                submitBtn.classList.remove('offline');
-                submitBtn.classList.add('online');
-            }
+            // document.getElementById('header-status-text').textContent = "Online"; // Removed text, just color
         } else {
             header.classList.remove('online');
             header.classList.add('offline');
-            statusText.textContent = "Offline";
-
-            if (submitBtn) {
-                submitBtn.classList.remove('online');
-                submitBtn.classList.add('offline');
-            }
+            // document.getElementById('header-status-text').textContent = "Offline"; 
+            this.showToast('You are offline. Reports will be saved locally.');
         }
-    },
-
-    checkConnection: function () {
-        this.updateStatus(navigator.onLine);
-    },
-
-    // --- UI Utilities ---
-    showToast: function (msg) {
-        const toast = document.getElementById('toast');
-        toast.textContent = msg;
-        toast.classList.add('show');
-        setTimeout(() => toast.classList.remove('show'), 3000);
-    },
-
-    renderDashboard: function () {
-        const mockData = [
-            { type: "Flood", sev: 5, time: "2 mins ago", loc: "River Bank" },
-            { type: "RoadBlock", sev: 3, time: "1 hour ago", loc: "Main Hwy" },
-            { type: "Fire", sev: 4, time: "3 hours ago", loc: "Sector 7" }
-        ];
-
-        document.getElementById('dashboard-list').innerHTML = mockData.map(d => `
-            <div class="card" style="border-left-color: ${d.sev >= 4 ? 'red' : 'orange'}">
-                <h3>${d.type}</h3>
-                <p>${d.loc}</p>
-                <div class="meta">
-                    <span>${d.time}</span>
-                    <span>✅ Active</span>
-                </div>
-            </div>
-        `).join('');
     }
 };
 
-// Start App
-document.addEventListener('DOMContentLoaded', () => app.init());
+// Start App when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => app.init());
+} else {
+    app.init();
+}
