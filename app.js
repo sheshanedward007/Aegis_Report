@@ -349,9 +349,9 @@ const app = {
             type: typeEl.value,
             severity: sev,
             notes: notes,
-            image: imageBase64, // Store Base64 image
-            status: 'pending', // pending, approved, resolved
-            syncStatus: navigator.onLine ? 'synced' : 'pending_sync',
+            image: imageBase64,
+            status: 'pending',
+            syncStatus: 'pending_sync', // ← FIXED: Always start as pending_sync
             reporter: this.state.currentUser.username,
             coords: this.state.currentLocation || { latitude: 0, longitude: 0 },
             timestamp: new Date().toISOString(),
@@ -359,24 +359,22 @@ const app = {
         };
 
         try {
-            // Save to DB first (Safe Submission)
+            // Save to IndexedDB first
             await db.addReport(report);
 
-            // Update State & UI only after successful save
+            // Update State
             this.state.reports.unshift(report);
-            // Re-sort just in case (though unshift on sorted list is usually fine, specific requirements asked safe sort)
             this.state.reports.sort((a, b) => b.id - a.id);
 
-            const msg = navigator.onLine
-                ? 'Report Submitted Successfully'
-                : 'Saved to local storage successfully';
-            this.showToast(msg);
+            // --- FIRESTORE SYNC ---
+            console.log('🔍 Checking Firestore sync...');
+            console.log('Online?', navigator.onLine);
+            console.log('Firestore exists?', typeof window.firestore !== 'undefined');
 
-
-            // --- FIRESTORE SYNC ON SUBMIT (NEW) ---
-            if (navigator.onLine && typeof firestore !== 'undefined') {
+            if (navigator.onLine && typeof window.firestore !== 'undefined') {
+                console.log('🚀 Attempting Firestore save...');
                 try {
-                    await firestore.collection('reports').doc(report.id.toString()).set({
+                    await window.firestore.collection('reports').doc(report.id.toString()).set({
                         type: report.type,
                         severity: report.severity,
                         notes: report.notes,
@@ -387,19 +385,27 @@ const app = {
                         timestamp: report.timestamp,
                         formattedDate: report.formattedDate
                     });
+                    console.log('✅ Firestore save SUCCESS!');
+
+                    // Update sync status AFTER successful save
                     report.syncStatus = 'synced';
                     await db.updateReport(report);
+
+                    this.showToast('Report Submitted Successfully');
                 } catch (e) {
-                    console.error("Firestore save failed", e);
+                    console.error("❌ Firestore save failed:", e);
                     report.syncStatus = 'pending_sync';
+                    this.showToast('Saved locally. Will sync when online.');
                 }
+            } else {
+                console.log('⚠️ Skipping Firestore - offline or firestore undefined');
+                this.showToast('Saved to local storage successfully');
             }
-            // --- END FIRESTORE SYNC ---
 
             // Reset form
             document.getElementById('incident-form').reset();
             document.getElementById('severity-val').textContent = '3';
-            if (fileInput) fileInput.value = ''; // Explicit reset
+            if (fileInput) fileInput.value = '';
 
             // Auto switch to list
             setTimeout(() => this.switchTab('my-reports'), 500);
