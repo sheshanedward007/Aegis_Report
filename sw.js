@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aegis-v7';
+const CACHE_NAME = 'aegis-v8';
 const ASSETS = [
     './',
     './index.html',
@@ -33,6 +33,20 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
+    // 1. Bypass for non-GET requests (POST, PUT, DELETE, etc.)
+    if (e.request.method !== 'GET') {
+        e.respondWith(fetch(e.request));
+        return;
+    }
+
+    // 2. Bypass for Firebase/API requests
+    const url = new URL(e.request.url);
+    if (url.origin.includes('googleapis.com') || url.origin.includes('firebase')) {
+        e.respondWith(fetch(e.request));
+        return;
+    }
+
+    // 3. Current Strategy: Cache First, falling back to Network
     e.respondWith(
         caches.match(e.request).then(res => res || fetch(e.request))
     );
